@@ -1,0 +1,203 @@
+#pragma once
+
+
+#include "./internals.h"
+#include "./ArrayList.h"
+
+
+#define HASH_TABLE_CAPACITY 128
+
+
+#define FNV_OFFSET_64 14695981039346656037ULL
+#define FNV_PRIME_64  1099511628211ULL
+
+
+static inline uint64_t fnv1a_64(const void *key, size_t len) {
+    const uint8_t *data = (const uint8_t*) key;
+    uint64_t hash = FNV_OFFSET_64;
+
+    for (size_t i=0; i<len; ++i) {
+        hash ^= data[i];
+        hash *= FNV_PRIME_64;
+    }
+
+    return hash;
+}
+
+
+static inline size_t hash_index(const char *key) {
+    return fnv1a_64(key, strlen(key)) % HASH_TABLE_CAPACITY;
+}
+
+
+typedef struct entry {
+    char *key;
+    void *data;
+} Entry;
+
+
+typedef struct HashTable {
+    struct HashTable *self;
+
+    ArrayList *table;
+    pthread_mutex_t mutex;
+    pthread_mutexattr_t mutex_attr;
+
+    void* (*get)(struct HashTable *self, char *key);
+    void (*set)(struct HashTable *self, char *key, void *data, size_t type_size);
+    void (*delete_entry)(struct HashTable *self, char *key);
+    void (*free)(struct HashTable *self);
+} HashTable;
+
+
+HashTable* New_HashTable();
+static inline void* hash_table_get(HashTable *self, char *key);
+static inline void hash_table_set(HashTable *self, char *key, void *data, size_t type_size);
+static inline void hash_table_delete(HashTable *self, char *key);
+static void hash_table_free(HashTable *self);
+
+
+HashTable* New_HashTable() {
+    HashTable *self = (HashTable*) malloc(sizeof(HashTable));
+
+    if (!self)
+        throw_memory_allocation_error();
+
+    self->table = New_ArrayList();
+
+    pthread_mutexattr_init(&self->mutex_attr);
+    pthread_mutexattr_settype(&self->mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&self->mutex, &self->mutex_attr);
+    pthread_mutexattr_destroy(&self->mutex_attr);
+
+    self->set = hash_table_set;
+    self->get = hash_table_get;
+    self->delete_entry = hash_table_delete;
+    self->free = hash_table_free;
+
+    return self;
+}
+
+
+static inline void* hash_table_get(HashTable *self, char *key) {
+    LOCK(self->mutex);
+
+    void *res = NULL;
+
+    size_t index = hash_index(key);
+    ArrayList *bucket = self->table->get_at(self->table, index);
+
+    if (bucket) {
+        for (size_t i=0; i<bucket->capacity; ++i) {
+            Entry *entry = bucket->get_at(bucket, i);
+
+            if (entry && strcmp(entry->key, key)==0) {
+                res = entry->data;
+                break;
+            }
+        }
+    }
+
+    UNLOCK(self->mutex);
+
+    return res;
+}
+
+
+static inline void hash_table_set(HashTable *self, char *key, void *data, size_t type_size) {
+    LOCK(self->mutex);
+
+    size_t index = hash_index(key);
+    ArrayList *bucket = self->table->get_at(self->table, index);
+
+    if (!bucket) {
+        bucket = New_ArrayList();
+        self->table->set_at(self->table, bucket, sizeof(ArrayList), index);
+    }
+
+    for (size_t i=0; i<bucket->capacity; ++i) {
+        Entry *entry = bucket->get_at(bucket, i);
+
+        if (entry && strcmp(entry->key, key) == 0) {
+            free(entry->data);
+            entry->data = copy_from_void_ptr(data, type_size);
+            goto un;
+        }
+    }
+
+    Entry *new_entry = (Entry*) malloc(sizeof(Entry));
+
+    if (!new_entry)
+        throw_memory_allocation_error();
+
+    new_entry->key = strdup(key);
+    new_entry->data = copy_from_void_ptr(data, type_size);
+
+    for (size_t i=0; i<bucket->capacity; ++i) {
+        if (!bucket->get_at(bucket, i)) {
+            bucket->set_at(bucket, new_entry, sizeof(Entry), i);
+            goto un;
+        }
+    }
+
+    bucket->set_at(bucket, new_entry, sizeof(Entry), bucket->capacity);
+
+    un:
+        UNLOCK(self->mutex);
+}
+
+
+static inline void hash_table_delete(HashTable *self, char *key) {
+    LOCK(self->mutex);
+
+    size_t index = hash_index(key);
+    ArrayList *bucket = self->table->get_at(self->table, index);
+
+    if (bucket) {
+        for (size_t i=0; i<bucket->capacity; ++i) {
+            Entry *entry = bucket->get_at(bucket, i);
+
+            if (entry && strcmp(entry->key, key)==0) {
+                free(entry->key);
+                free(entry->data);
+                free(entry);
+
+                bucket->set_at(bucket, NULL, sizeof(void*), i);
+                
+                break;
+            }
+        }
+    }
+
+    UNLOCK(self->mutex);
+}
+
+
+static void hash_table_free(HashTable *self) {
+    LOCK(self->mutex);
+
+    for (size_t i=0; i<self->table->capacity; ++i) {
+        ArrayList *bucket = self->table->get_at(self->table, i);
+        if (!bucket) continue;
+
+        for (size_t j=0; j<bucket->capacity; ++j) {
+            Entry *entry = bucket->get_at(bucket, j);
+
+            if (entry) {
+                free(entry->key);
+                free(entry->data);
+                free(entry);
+            }
+        }
+
+        bucket->free(bucket);
+    }
+
+    self->table->free(self->table);
+
+    UNLOCK(self->mutex);
+    pthread_mutex_destroy(&self->mutex);
+
+    free(self);
+}
+
