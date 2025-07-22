@@ -101,11 +101,24 @@ static inline void set_merge(Set *self, Set *s2) {
     LOCK(self->mutex);
     LOCK(s2->mutex);
 
-    
+    for (size_t i = 0; i < s2->table->table->capacity; ++i) {
+        ArrayList *bucket = s2->table->table->get_at(s2->table->table, i);
+        if (!bucket) 
+            continue;
 
-    UNLOCK(self->mutex);
+        for (size_t j = 0; j < bucket->capacity; ++j) {
+            Entry *entry = bucket->get_at(bucket, j);
+            if (!entry) 
+                continue;
+
+            self->table->set(self->table, entry->key, self->flag, sizeof(char));
+        }
+    }
+
     UNLOCK(s2->mutex);
+    UNLOCK(self->mutex);
 }
+
 
 
 static void set_free(Set *self) {
