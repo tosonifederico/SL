@@ -37,27 +37,29 @@ typedef struct List {
     void* (*dequeue)(struct List *self);
     bool (*lookup)(struct List *self, void *data, size_t type_size);
     size_t (*count_occurrences)(struct List *self, void *data, size_t type_size);
+    void (*merge)(struct List *self, struct List *l2);
     void (*free)(struct List *self);
 } List;
 
 
 List* New_List();
 static list_node* init_list_node(void *data, size_t type_size);
-static bool list_is_empty(List *self);
-static void list_print(List *self);
-static void list_append_at(List *self, void *data, size_t type_size, size_t index);
-static void list_modify_at(List *self, void *data, size_t type_size, size_t index);
-static void* list_get_at(List *self, size_t index);
-static void list_reverse(List *self);
-static void list_foreach(List *self, void (*func)(void *data, va_list args), ...);
-static void* list_delete_at(List *self, size_t index);
+static inline bool list_is_empty(List *self);
+static inline void list_print(List *self);
+static inline void list_append_at(List *self, void *data, size_t type_size, size_t index);
+static inline void list_modify_at(List *self, void *data, size_t type_size, size_t index);
+static inline void* list_get_at(List *self, size_t index);
+static inline void list_reverse(List *self);
+static inline void list_foreach(List *self, void (*func)(void *data, va_list args), ...);
+static inline void* list_delete_at(List *self, size_t index);
 static inline void list_push(List *self, void *data, size_t type_size);
 static inline void* list_pop(List *self);
 static inline void list_enqueue(List *self, void *data, size_t type_size);
 static inline void* list_dequeue(List *self);
-static bool list_lookup(List *self, void *data, size_t type_size);
-static size_t list_count_occurrences(struct List *self, void *data, size_t type_size);
-static void list_free(List *self);
+static inline bool list_lookup(List *self, void *data, size_t type_size);
+static inline size_t list_count_occurrences(struct List *self, void *data, size_t type_size);
+static inline void list_merge(List *self, List *l2);
+static inline void list_free(List *self);
 
 
 List* New_List() {
@@ -93,6 +95,7 @@ List* New_List() {
     self->dequeue = list_dequeue;
     self->lookup = list_lookup;
     self->count_occurrences = list_count_occurrences;
+    self->merge = list_merge;
     self->free = list_free;
 
     return self;
@@ -114,7 +117,7 @@ static list_node* init_list_node(void *data, size_t type_size) {
 }
 
 
-static bool list_is_empty(List *self) {
+static inline bool list_is_empty(List *self) {
     LOCK(self->mutex);
 
     size_t len = self->len;
@@ -124,7 +127,7 @@ static bool list_is_empty(List *self) {
 }
 
 
-static void list_print(List *self) {
+static inline void list_print(List *self) {
     LOCK(self->mutex);
 
     if (self->is_empty(self)) {
@@ -146,7 +149,7 @@ static void list_print(List *self) {
 }
 
 
-static void list_append_at(List *self, void *data, size_t type_size, size_t index) {
+static inline void list_append_at(List *self, void *data, size_t type_size, size_t index) {
     LOCK(self->mutex);
 
     if (index > self->len) {
@@ -200,7 +203,7 @@ static void list_append_at(List *self, void *data, size_t type_size, size_t inde
 }
 
 
-static void list_modify_at(List *self, void *data, size_t type_size, size_t index) {
+static inline void list_modify_at(List *self, void *data, size_t type_size, size_t index) {
     LOCK(self->mutex);
 
     if (index >= self->len) {
@@ -233,7 +236,7 @@ static void list_modify_at(List *self, void *data, size_t type_size, size_t inde
 }
 
 
-static void* list_get_at(List *self, size_t index) {
+static inline void* list_get_at(List *self, size_t index) {
     LOCK(self->mutex);
 
     if (index >= self->len) {
@@ -267,7 +270,7 @@ static void* list_get_at(List *self, size_t index) {
 }
 
 
-static void list_reverse(List *self) {
+static inline void list_reverse(List *self) {
     LOCK(self->mutex);
 
     list_node *current_node = self->head;
@@ -290,7 +293,7 @@ static void list_reverse(List *self) {
 }
 
 
-static void list_foreach(List *self, void (*func)(void *data, va_list args), ...) {
+static inline void list_foreach(List *self, void (*func)(void *data, va_list args), ...) {
     LOCK(self->mutex);
 
     va_list args;
@@ -313,7 +316,7 @@ static void list_foreach(List *self, void (*func)(void *data, va_list args), ...
 }
 
 
-static void* list_delete_at(List *self, size_t index) {
+static inline void* list_delete_at(List *self, size_t index) {
     LOCK(self->mutex);
 
     if (index >= self->len) {
@@ -400,7 +403,7 @@ static inline void* list_dequeue(List *self) {
 }
 
 
-static bool list_lookup(List *self, void *data, size_t type_size) {
+static inline bool list_lookup(List *self, void *data, size_t type_size) {
     LOCK(self->mutex);
 
     list_node *current_node = self->head;
@@ -419,7 +422,7 @@ static bool list_lookup(List *self, void *data, size_t type_size) {
 }
 
 
-static size_t list_count_occurrences(struct List *self, void *data, size_t type_size) {
+static inline size_t list_count_occurrences(struct List *self, void *data, size_t type_size) {
     LOCK(self->mutex);
 
     size_t count = 0;
@@ -439,7 +442,17 @@ static size_t list_count_occurrences(struct List *self, void *data, size_t type_
 }
 
 
-static void list_free(List *self) {
+static inline void list_merge(List *self, List *l2) {
+    list_node *current_node = l2->head;
+
+    while (current_node) {
+        self->push(self, current_node->data, current_node->type_size);
+        current_node = current_node->next;  
+    }
+}
+
+
+static inline void list_free(List *self) {
     LOCK(self->mutex);
 
     while (!self->is_empty(self))
