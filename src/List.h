@@ -73,7 +73,6 @@ List* New_List() {
     self->len = 0;
     self->head = NULL;
     self->tail = NULL;
-
     pthread_mutexattr_init(&self->mutex_attr);
     pthread_mutexattr_settype(&self->mutex_attr, PTHREAD_MUTEX_RECURSIVE);
 
