@@ -2,43 +2,15 @@
 
 
 #include "./internals.h"
-#include "./AVL_Tree.h"
-
-
-char* pointed_to_hex_string(void* data, size_t size) {
-    if (!data || size == 0)
-        return NULL;
-
-    const unsigned char* bytes = (unsigned char*) data;
-
-    char* hex_str = (char*) malloc(size*2 + 1);
-    
-    if (!hex_str)
-        throw_memory_allocation_error();
-    
-    for (size_t i = 0; i < size; ++i)
-        sprintf(&hex_str[i * 2], "%02X", bytes[i]);
-
-    hex_str[size * 2] = '\0';
-
-    return hex_str;
-}
-
-
-int get_key_from_data(void *data, size_t size) {
-    char *hex_string = pointed_to_hex_string(data, size);
-    int key = fnv1a_64(hex_string, strlen(hex_string));
-
-    free(hex_string);
-
-    return key;
-}
+#include "./HashTable.h"
 
 
 typedef struct Set {
     struct Set *self;
 
-    AVL_Tree *tree;
+    HashTable *table;
+
+    char *flag;
 
     pthread_mutex_t mutex;
     pthread_mutexattr_t mutex_attr;
@@ -46,6 +18,7 @@ typedef struct Set {
     void (*insert)(struct Set *self, void *data, size_t type_size);
     void (*delete)(struct Set *self, void *data, size_t type_size);
     bool (*lookup)(struct Set *self, void *data, size_t type_size);
+    void (*merge)(struct Set *self, struct Set *s2);
     void (*free)(struct Set *self);    
 } Set;
 
@@ -54,7 +27,8 @@ Set* New_Set();
 static inline void set_insert(Set *self, void *data, size_t type_size);
 static inline void set_delete(Set *self, void *data, size_t type_size);
 static inline bool set_lookup(Set *self, void *data, size_t type_size);
-static void set_free( Set *self);    
+static inline void set_merge(Set *self, Set *s2);
+static void set_free( Set *self);
 
 
 Set* New_Set() {
@@ -65,7 +39,10 @@ Set* New_Set() {
 
     self->self = self;
     
-    self->tree = New_AVL_Tree();
+    self->table = New_HashTable();
+
+    self->flag = (char*) malloc(sizeof(char));
+    *(self->flag) = 'A';
 
     pthread_mutexattr_init(&self->mutex_attr);
     pthread_mutexattr_settype(&self->mutex_attr, PTHREAD_MUTEX_RECURSIVE);
@@ -77,6 +54,7 @@ Set* New_Set() {
     self->insert = set_insert;
     self->delete = set_delete;
     self->lookup = set_lookup;
+    self->merge = set_merge;
     self->free = set_free;
 
     return self;
@@ -86,7 +64,13 @@ Set* New_Set() {
 static inline void set_insert(Set *self, void *data, size_t type_size) {
     LOCK(self->mutex);
 
-    self->tree->insert(self->tree, get_key_from_data(data, type_size), data, type_size);
+    char *key = hex_string_from_pointer(data, type_size);
+    char *entry_data = (char*) self->table->get(self->table, key);
+
+    if (entry_data && *entry_data == *(self->flag))
+        return;
+    else
+        self->table->set(self->table, key, self->flag, type_size);
     
     UNLOCK(self->mutex);
 }
@@ -95,7 +79,7 @@ static inline void set_insert(Set *self, void *data, size_t type_size) {
 static inline void set_delete(Set *self, void *data, size_t type_size) {
     LOCK(self->mutex);
     
-    self->tree->delete(self->tree, get_key_from_data(data, type_size));
+    self->table->delete(self->table, hex_string_from_pointer(data, type_size));
     
     UNLOCK(self->mutex);
 }
@@ -104,7 +88,8 @@ static inline void set_delete(Set *self, void *data, size_t type_size) {
 static inline bool set_lookup(Set *self, void *data, size_t type_size) {
     LOCK(self->mutex);
 
-    bool res =  self->tree->lookup(self->tree, get_key_from_data(data, type_size)) != NULL;
+    char *entry_data = (char*) self->table->get(self->table, hex_string_from_pointer(data, type_size));
+    bool res = entry_data && *entry_data == *(self->flag);
     
     UNLOCK(self->mutex);
 
@@ -112,10 +97,22 @@ static inline bool set_lookup(Set *self, void *data, size_t type_size) {
 }
 
 
+static inline void set_merge(Set *self, Set *s2) {
+    LOCK(self->mutex);
+    LOCK(s2->mutex);
+
+    
+
+    UNLOCK(self->mutex);
+    UNLOCK(s2->mutex);
+}
+
+
 static void set_free(Set *self) {
     LOCK(self->mutex);
 
-    self->tree->free(self->tree);
+    free(self->flag);
+    self->table->free(self->table);
     
     UNLOCK(self->mutex);
     pthread_mutex_destroy(&self->mutex);

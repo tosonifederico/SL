@@ -340,6 +340,7 @@ static void avl_free_subtree(tree_node *node) {
 
 void avl_merge(AVL_Tree *self, AVL_Tree *t2) {
     LOCK(self->mutex);
+    LOCK(t2->mutex);
 
     List *l1 = self->in_order_traversal(self);
     List *l2 = t2->in_order_traversal(t2);
@@ -351,13 +352,21 @@ void avl_merge(AVL_Tree *self, AVL_Tree *t2) {
 
     for (size_t i=0; i<l1->len; ++i) {
         tree_node *current_node = (tree_node*) l1->get_at(l1, i);
-        self->insert(self, current_node->key, current_node->data, current_node->type_size);
+        
+        int temp_key = current_node->key;
+        size_t temp_size = current_node->type_size;
+        void *temp_data = copy_from_void_ptr(current_node->data, current_node->type_size);
+
+        self->insert(self, temp_key, temp_data, temp_size);
+    
+        free(temp_data);
     }
 
     l1->free(l1);
     l2->free(l2);
 
     UNLOCK(self->mutex);
+    UNLOCK(t2->mutex);
 }
 
 

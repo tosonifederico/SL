@@ -137,7 +137,7 @@ static inline void list_print(List *self) {
     list_node *current_node = self->head;
     
     for (size_t i=0; i<self->len; ++i) {
-        printf("|%p| -> ", current_node->data);
+        printf("|%d| -> ", *((int*)current_node->data));
         current_node = current_node->next;
     }
 

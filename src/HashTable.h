@@ -45,7 +45,7 @@ typedef struct HashTable {
 
     void* (*get)(struct HashTable *self, char *key);
     void (*set)(struct HashTable *self, char *key, void *data, size_t type_size);
-    void (*delete_entry)(struct HashTable *self, char *key);
+    void (*delete)(struct HashTable *self, char *key);
     void (*free)(struct HashTable *self);
 } HashTable;
 
@@ -72,7 +72,7 @@ HashTable* New_HashTable() {
 
     self->set = hash_table_set;
     self->get = hash_table_get;
-    self->delete_entry = hash_table_delete;
+    self->delete = hash_table_delete;
     self->free = hash_table_free;
 
     return self;
@@ -153,23 +153,25 @@ static inline void hash_table_delete(HashTable *self, char *key) {
     size_t index = hash_index(key);
     ArrayList *bucket = self->table->get_at(self->table, index);
 
-    if (bucket) {
-        for (size_t i=0; i<bucket->capacity; ++i) {
-            Entry *entry = bucket->get_at(bucket, i);
+    if (!bucket)
+        goto un;
 
-            if (entry && strcmp(entry->key, key)==0) {
-                free(entry->key);
-                free(entry->data);
-                free(entry);
+    for (size_t i=0; i<bucket->capacity; ++i) {
+        Entry *entry = bucket->get_at(bucket, i);
 
-                bucket->set_at(bucket, NULL, sizeof(void*), i);
-                
-                break;
-            }
+        if (entry && strcmp(entry->key, key)==0) {
+            free(entry->key);
+            free(entry->data);
+            free(entry);
+
+            bucket->set_at(bucket, NULL, sizeof(void*), i);
+            
+            break;
         }
     }
-
-    UNLOCK(self->mutex);
+    
+    un:
+        UNLOCK(self->mutex);
 }
 
 

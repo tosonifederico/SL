@@ -78,8 +78,11 @@ static inline void ArrayList_set_at(ArrayList *self, void *data, size_t type_siz
         self->capacity = new_capacity;
     }
 
-    free(self->arr[index]);
-    self->arr[index] = copy_from_void_ptr(data, type_size);
+    if (data) {
+        free(self->arr[index]);
+        self->arr[index] = copy_from_void_ptr(data, type_size);
+    } else
+        self->arr[index] = NULL;
 
     UNLOCK(self->mutex);
 }

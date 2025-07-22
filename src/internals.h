@@ -51,5 +51,23 @@ static inline bool compare_void_ptr(const void *ptr1, const void *ptr2, size_t t
 }
 
 
+char* hex_string_from_pointer(void* data, size_t size) {
+    if (!data || size == 0)
+        return NULL;
+
+    const unsigned char* bytes = (unsigned char*) data;
+
+    char* hex_str = (char*) malloc(size*2 + 1);
+    
+    if (!hex_str)
+        throw_memory_allocation_error();
+    
+    for (size_t i = 0; i < size; ++i)
+        sprintf(&hex_str[i * 2], "%02X", bytes[i]);
+
+    hex_str[size * 2] = '\0';
+
+    return hex_str;
+}
 
 
