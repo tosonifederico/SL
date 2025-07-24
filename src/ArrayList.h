@@ -31,10 +31,7 @@ static inline void ArrayList_free(ArrayList *self);
 
 
 ArrayList* New_ArrayList() {
-    ArrayList *self = (ArrayList*) malloc(sizeof(ArrayList));
-    
-    if (!self)
-        throw_memory_allocation_error();
+    ArrayList *self = (ArrayList*) Malloc(sizeof(ArrayList));
 
     pthread_mutexattr_init(&self->mutex_attr);
     pthread_mutexattr_settype(&self->mutex_attr, PTHREAD_MUTEX_RECURSIVE);
@@ -44,11 +41,8 @@ ArrayList* New_ArrayList() {
     pthread_mutexattr_destroy(&self->mutex_attr);
 
     self->capacity = ARRAY_LIST_INITIAL_CAPACITY;
-    self->arr = (void**) calloc(self->capacity, sizeof(void*));
+    self->arr = (void**) Calloc(self->capacity, sizeof(void*));
     
-    if (!self->arr)
-        throw_memory_allocation_error();
-
     self->set_at = ArrayList_set_at;
     self->get_at = ArrayList_get_at;
     self->foreach = ArrayList_foreach;
@@ -67,10 +61,7 @@ static inline void ArrayList_set_at(ArrayList *self, void *data, size_t type_siz
         while (index >= new_capacity)
             new_capacity *= 2;
 
-        void **new_arr = (void**) realloc(self->arr, new_capacity * sizeof(void*));
-        
-        if (!new_arr)
-            throw_memory_allocation_error();
+        void **new_arr = (void**) Realloc(self->arr, new_capacity * sizeof(void*));
 
         memset(new_arr + self->capacity, 0, (new_capacity - self->capacity) * sizeof(void*));
 
@@ -130,14 +121,14 @@ static inline void ArrayList_free(ArrayList *self) {
     LOCK(self->mutex);
     
     for (size_t i=0; i<self->capacity; ++i)
-        free(self->arr[i]);
+        Free(self->arr[i]);
 
-    free(self->arr);
+    Free(self->arr);
 
     UNLOCK(self->mutex);
 
     pthread_mutex_destroy(&self->mutex);
 
-    free(self);
+    Free(self);
 }
 

@@ -63,10 +63,7 @@ static inline void list_free(List *self);
 
 
 List* New_List() {
-    List *self = (List*) malloc(sizeof(List));
-
-    if (!self)
-        throw_memory_allocation_error();
+    List *self = (List*) Malloc(sizeof(List));
 
     self->self = self;
 
@@ -102,10 +99,7 @@ List* New_List() {
 
 
 static list_node* init_list_node(void *data, size_t type_size) {
-    list_node *node = (list_node*) malloc(sizeof(list_node));
-
-    if (!node)
-        throw_memory_allocation_error();
+    list_node *node = (list_node*) Malloc(sizeof(list_node));
 
     node->data = data;
     node->type_size = type_size;
@@ -228,7 +222,7 @@ static inline void list_modify_at(List *self, void *data, size_t type_size, size
         }
     }
 
-    free(current_node->data);
+    Free(current_node->data);
     current_node->data = copy_from_void_ptr(data, type_size);
 
     UNLOCK(self->mutex);
@@ -369,8 +363,8 @@ static inline void* list_delete_at(List *self, size_t index) {
 
     void *ret = copy_from_void_ptr(to_delete->data, to_delete->type_size);
     
-    free(to_delete->data);
-    free(to_delete);
+    Free(to_delete->data);
+    Free(to_delete);
 
     UNLOCK(self->mutex);
 
@@ -460,7 +454,7 @@ static inline void list_free(List *self) {
     UNLOCK(self->mutex);
     pthread_mutex_destroy(&self->mutex);
 
-    free(self);
+    Free(self);
 }
 
 

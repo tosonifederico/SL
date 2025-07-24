@@ -32,16 +32,13 @@ static void set_free( Set *self);
 
 
 Set* New_Set() {
-    Set *self = (Set*) malloc(sizeof(Set));
-
-    if (!self)
-        throw_memory_allocation_error();
+    Set *self = (Set*) Malloc(sizeof(Set));
 
     self->self = self;
     
     self->table = New_HashTable();
 
-    self->flag = (char*) malloc(sizeof(char));
+    self->flag = (char*) Malloc(sizeof(char));
     *(self->flag) = 'A';
 
     pthread_mutexattr_init(&self->mutex_attr);
@@ -124,12 +121,12 @@ static inline void set_merge(Set *self, Set *s2) {
 static void set_free(Set *self) {
     LOCK(self->mutex);
 
-    free(self->flag);
+    Free(self->flag);
     self->table->free(self->table);
     
     UNLOCK(self->mutex);
     pthread_mutex_destroy(&self->mutex);
 
-    free(self);
+    Free(self);
 }
 

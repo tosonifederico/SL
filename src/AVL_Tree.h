@@ -113,10 +113,7 @@ static int tree_node_balance(tree_node *node) {
 
 
 static tree_node* init_avl_node(int key, void *data, size_t type_size) {
-    tree_node *node = (tree_node*) malloc(sizeof(tree_node));
-
-    if (!node)
-        throw_memory_allocation_error();
+    tree_node *node = (tree_node*) Malloc(sizeof(tree_node));
 
     node->key = key;
     node->data = copy_from_void_ptr(data, type_size);
@@ -129,9 +126,7 @@ static tree_node* init_avl_node(int key, void *data, size_t type_size) {
 
 
 static inline AVL_Tree* New_AVL_Tree() {
-    AVL_Tree *self = (AVL_Tree*) malloc(sizeof(AVL_Tree));
-    if (!self)
-        throw_memory_allocation_error();
+    AVL_Tree *self = (AVL_Tree*) Malloc(sizeof(AVL_Tree));
 
     self->self = self;
     self->root = NULL;
@@ -165,7 +160,7 @@ static tree_node* avl_insert_node(tree_node *node, int key, void *data, size_t t
         if (node->right)
             node->right->parent = node;
     } else {
-        free(node->data);
+        Free(node->data);
         node->data = copy_from_void_ptr(data, type_size);
         node->type_size = type_size;
         return node;
@@ -229,14 +224,14 @@ static tree_node* avl_delete_node(tree_node* node, int key) {
     } else {
         if (!node->left || !node->right) {
             tree_node *temp = node->left ? node->left : node->right;
-            free(node->data);
-            free(node);
+            Free(node->data);
+            Free(node);
             return temp;
         } else {
             tree_node *successor = get_min_node(node->right);
             node->key = successor->key;
 
-            free(node->data);
+            Free(node->data);
             node->data = copy_from_void_ptr(successor->data, successor->type_size);
             node->type_size = successor->type_size;
 
@@ -333,8 +328,8 @@ static void avl_free_subtree(tree_node *node) {
     avl_free_subtree(node->left);
     avl_free_subtree(node->right);
     
-    free(node->data);
-    free(node);
+    Free(node->data);
+    Free(node);
 }
 
 
@@ -359,7 +354,7 @@ void avl_merge(AVL_Tree *self, AVL_Tree *t2) {
 
         self->insert(self, temp_key, temp_data, temp_size);
     
-        free(temp_data);
+        Free(temp_data);
     }
 
     l1->free(l1);
@@ -378,7 +373,7 @@ static void avl_free(AVL_Tree *self) {
     UNLOCK(self->mutex);
     pthread_mutex_destroy(&self->mutex);
     
-    free(self);
+    Free(self);
 }
 
 
