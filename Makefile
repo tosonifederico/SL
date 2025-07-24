@@ -11,5 +11,6 @@ all:
 
 clear:
 	rm $(OBJECT_FILE)
+	rm ./src/$(OBJECT_FILE)
 
 
