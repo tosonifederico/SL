@@ -77,10 +77,22 @@ void FreeWrapper(void *ptr, const char *file, int line, const char *function) {
 }
 
 
+#define MEM_DEBUG
+
+#ifdef MEM_DEBUG
+
 #define Malloc(n) MallocWrapper(n, __FILE__, __LINE__, __func__)
 #define Calloc(n, s) CallocWrapper(n, s, __FILE__, __LINE__, __func__)
 #define Realloc(p, n) ReallocWrapper(p, n, __FILE__, __LINE__, __func__)
 #define Free(p) FreeWrapper(p, __FILE__, __LINE__, __func__)
+
+#else
+#define Malloc(n) Malloc(n)
+#define Calloc(n, s) calloc(n)
+#define Realloc(p, n) realloc(p, n)
+#define Free(p) free(p)
+
+#endif
 
 
 extern char* strdup(const char*);
