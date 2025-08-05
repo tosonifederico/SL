@@ -20,8 +20,10 @@ typedef struct ArrayList {
     void* (*get_at)(struct ArrayList *self, size_t index);
     void (*foreach)(struct ArrayList *self, void (*func)(void *data, va_list args), ...);
     void (*free)(struct ArrayList *self);
+
+    void (*destroy)(void *data);
 } ArrayList;
 
 
-ArrayList* New_ArrayList();
+ArrayList* New_ArrayList(void (*destroy_func)(void *data));
 

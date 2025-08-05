@@ -8,7 +8,7 @@ static void ArrayList_foreach(ArrayList *self, void (*func)(void *data, va_list 
 static inline void ArrayList_free(ArrayList *self);
 
 
-ArrayList* New_ArrayList() {
+ArrayList* New_ArrayList(void (*destroy_func)(void *data)) {
     ArrayList *self = (ArrayList*) Malloc(sizeof(ArrayList));
 
     pthread_mutexattr_init(&self->mutex_attr);
@@ -26,6 +26,8 @@ ArrayList* New_ArrayList() {
     self->foreach = ArrayList_foreach;
     self->free = ArrayList_free;
 
+    self->destroy = destroy_func ? destroy_func : free;
+
     return self;
 }
 
@@ -35,26 +37,31 @@ static inline void ArrayList_set_at(ArrayList *self, void *data, size_t type_siz
 
     if (index >= self->capacity) {
         size_t new_capacity = self->capacity * 2;
-
         while (index >= new_capacity)
             new_capacity *= 2;
 
         void **new_arr = (void**) Realloc(self->arr, new_capacity * sizeof(void*));
-
         memset(new_arr + self->capacity, 0, (new_capacity - self->capacity) * sizeof(void*));
 
         self->arr = new_arr;
         self->capacity = new_capacity;
     }
 
-    if (data) {
-        free(self->arr[index]);
+    if (self->arr[index]) {
+        if (self->destroy)
+            self->destroy(self->arr[index]);
+        else
+            Free(self->arr[index]);
+    }
+
+    if (data)
         self->arr[index] = copy_from_void_ptr(data, type_size);
-    } else
+    else
         self->arr[index] = NULL;
 
     UNLOCK(self->mutex);
 }
+
 
 
 static inline void* ArrayList_get_at(ArrayList *self, size_t index) {
@@ -98,8 +105,10 @@ static void ArrayList_foreach(ArrayList *self, void (*func)(void *data, va_list 
 static inline void ArrayList_free(ArrayList *self) {
     LOCK(self->mutex);
     
-    for (size_t i=0; i<self->capacity; ++i)
-        Free(self->arr[i]);
+    for (size_t i=0; i<self->capacity; ++i) {
+        if (self->arr[i])
+            self->destroy(self->arr[i]);
+    }
 
     Free(self->arr);
 
@@ -109,4 +118,5 @@ static inline void ArrayList_free(ArrayList *self) {
 
     Free(self);
 }
+
 

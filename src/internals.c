@@ -69,10 +69,8 @@ void *ReallocWrapper(void *ptr, size_t size, const char *file, int line, const c
 
 
 void FreeWrapper(void *ptr, const char *file, int line, const char *function) {
-    #ifdef NULL_PTR_FREE_WARNING
     if (!ptr)
-        fprintf(stderr, "Trying to free a null ptr at %s:%d in function %s\n", file, line, function);
-    #endif
+        return;
 
     free(ptr); 
 }
