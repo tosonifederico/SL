@@ -408,7 +408,7 @@ static inline void list_free(List *self) {
     LOCK(self->mutex);
 
     while (!self->is_empty(self))
-        self->delete_at(self, 0);
+        free(self->delete_at(self, 0));
 
     UNLOCK(self->mutex);
     pthread_mutex_destroy(&self->mutex);
