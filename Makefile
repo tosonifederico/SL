@@ -1,16 +1,43 @@
-COMPILER = gcc
-FILE = ./src/main.c
-OBJECT_FILE = main
-STANDARD = c99
-FLAGS = -Wall -Werror
+CC = gcc
+CFLAGS = -Wall -Wextra -Iinclude -g
+LDFLAGS = -lpthread
 
 
-all:
-	$(COMPILER) $(FILE) -o $(OBJECT_FILE) -std=$(STANDARD) $(FLAGS)
+SRC_DIR = src
+TEST_DIR = test
+OBJ_DIR = build
+TARGET = main
 
 
-clear:
-	rm $(OBJECT_FILE)
-	rm ./src/$(OBJECT_FILE)
+SRC_SOURCES := $(wildcard $(SRC_DIR)/*.c)
+TEST_SOURCES := $(wildcard $(TEST_DIR)/*.c)
 
 
+SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRC_SOURCES))
+TEST_OBJECTS := $(patsubst $(TEST_DIR)/%.c, $(OBJ_DIR)/%.o, $(TEST_SOURCES))
+
+
+OBJECTS := $(SRC_OBJECTS) $(TEST_OBJECTS)
+
+
+all: $(OBJ_DIR) $(TARGET)
+
+
+$(OBJ_DIR):
+	mkdir -p $(OBJ_DIR)
+
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+
+$(OBJ_DIR)/%.o: $(TEST_DIR)/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+
+$(TARGET): $(OBJECTS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+
+clean:
+	rm -rf $(OBJ_DIR) $(TARGET)

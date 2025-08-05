@@ -1,6 +1,3 @@
-#pragma once
-
-
 #define _GNU_SOURCE
 
 
@@ -23,15 +20,14 @@
 #define UNLOCK(m) pthread_mutex_unlock(&m)
 
 
-static inline void throw_memory_allocation_error(const char *file, int line, const char *function);
+void throw_memory_allocation_error(const char *file, int line, const char *function);
 void *MallocWrapper(size_t size, const char *file, int line, const char *function);
 void *CallocWrapper(size_t num, size_t size, const char *file, int line, const char *function);
 void *ReallocWrapper(void *ptr, size_t size, const char *file, int line, const char *function);
 void FreeWrapper(void *ptr, const char *file, int line, const char *function);
 
 
-
-static inline void throw_memory_allocation_error(const char *file, int line, const char *function) {
+void throw_memory_allocation_error(const char *file, int line, const char *function) {
     fprintf(stderr, "Error during memory allocation (%s) at %s:%d in function %s\n", strerror(errno), file, line, function);
     exit(EXIT_FAILURE);
 }
@@ -58,6 +54,11 @@ void *CallocWrapper(size_t num, size_t size, const char *file, int line, const c
 
 
 void *ReallocWrapper(void *ptr, size_t size, const char *file, int line, const char *function) {
+    if (size == 0) {
+        free(ptr);
+        return NULL;
+    }
+
     void *new_ptr = realloc(ptr, size);
 
     if (!new_ptr || size==0)
@@ -73,7 +74,7 @@ void FreeWrapper(void *ptr, const char *file, int line, const char *function) {
         fprintf(stderr, "Trying to free a null ptr at %s:%d in function %s\n", file, line, function);
     #endif
 
-    free(ptr);    
+    free(ptr); 
 }
 
 
@@ -87,6 +88,7 @@ void FreeWrapper(void *ptr, const char *file, int line, const char *function) {
 #define Free(p) FreeWrapper(p, __FILE__, __LINE__, __func__)
 
 #else
+
 #define Malloc(n) Malloc(n)
 #define Calloc(n, s) calloc(n)
 #define Realloc(p, n) realloc(p, n)
@@ -98,7 +100,7 @@ void FreeWrapper(void *ptr, const char *file, int line, const char *function) {
 extern char* strdup(const char*);
 
 
-static inline void* copy_from_void_ptr(const void *src, size_t type_size) {
+void* copy_from_void_ptr(const void *src, size_t type_size) {
     if (!src || type_size == 0) 
         return NULL;
 
@@ -110,7 +112,7 @@ static inline void* copy_from_void_ptr(const void *src, size_t type_size) {
 }
 
 
-static inline bool compare_void_ptr(const void *ptr1, const void *ptr2, size_t type_size1, size_t type_size2) {
+bool compare_void_ptr(const void *ptr1, const void *ptr2, size_t type_size1, size_t type_size2) {
     return  (type_size1 == type_size2) && (memcmp(ptr1, ptr2, type_size1) == 0);
 }
 
@@ -123,7 +125,7 @@ char* hex_string_from_pointer(void* data, size_t size) {
 
     char* hex_str = (char*) Malloc(size*2 + 1);
     
-    for (size_t i = 0; i < size; ++i)
+    for (size_t i = 0; i<size; ++i)
         sprintf(&hex_str[i * 2], "%02X", bytes[i]);
 
     hex_str[size * 2] = '\0';

@@ -1,15 +1,4 @@
-#pragma once
-
-
-#include "./internals.h"
-#include "./ArrayList.h"
-
-
-#define HASH_TABLE_CAPACITY 128
-
-
-#define FNV_OFFSET_64 14695981039346656037ULL
-#define FNV_PRIME_64  1099511628211ULL
+#include "HashTable.h"
 
 
 static inline uint64_t fnv1a_64(const void *key, size_t len) {
@@ -28,26 +17,6 @@ static inline uint64_t fnv1a_64(const void *key, size_t len) {
 static inline size_t hash_index(const char *key) {
     return fnv1a_64(key, strlen(key)) % HASH_TABLE_CAPACITY;
 }
-
-
-typedef struct entry {
-    char *key;
-    void *data;
-} Entry;
-
-
-typedef struct HashTable {
-    struct HashTable *self;
-
-    ArrayList *table;
-    pthread_mutex_t mutex;
-    pthread_mutexattr_t mutex_attr;
-
-    void* (*get)(struct HashTable *self, char *key);
-    void (*set)(struct HashTable *self, char *key, void *data, size_t type_size);
-    void (*delete)(struct HashTable *self, char *key);
-    void (*free)(struct HashTable *self);
-} HashTable;
 
 
 HashTable* New_HashTable();
@@ -174,15 +143,18 @@ static void hash_table_free(HashTable *self) {
 
     for (size_t i=0; i<self->table->capacity; ++i) {
         ArrayList *bucket = self->table->get_at(self->table, i);
-        if (!bucket) continue;
+        
+        if (!bucket) 
+            continue;
 
         for (size_t j=0; j<bucket->capacity; ++j) {
             Entry *entry = bucket->get_at(bucket, j);
 
             if (entry) {
-                Free(entry->key);
-                Free(entry->data);
-                Free(entry);
+                if (entry->key)
+                    Free(entry->key);
+                if (entry->data)
+                    Free(entry->data);
             }
         }
 
