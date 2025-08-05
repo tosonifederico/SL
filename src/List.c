@@ -1,7 +1,7 @@
 #include "List.h"
 
 
-List* New_List();
+List* New_List(void (*destroy_func)(void *data));
 static list_node* init_list_node(void *data, size_t type_size);
 static inline bool list_is_empty(List *self);
 static inline void list_print(List *self);
@@ -21,7 +21,7 @@ static inline void list_merge(List *self, List *l2);
 static inline void list_free(List *self);
 
 
-List* New_List() {
+List* New_List(void (*destroy_func)(void *data)) {
     List *self = (List*) Malloc(sizeof(List));
 
     self->self = self;
@@ -52,6 +52,8 @@ List* New_List() {
     self->count_occurrences = list_count_occurrences;
     self->merge = list_merge;
     self->free = list_free;
+
+    self->destroy = destroy_func ? destroy_func : free;
 
     return self;
 }
@@ -181,7 +183,7 @@ static inline void list_modify_at(List *self, void *data, size_t type_size, size
         }
     }
 
-    Free(current_node->data);
+    self->destroy(current_node->data);
     current_node->data = copy_from_void_ptr(data, type_size);
 
     UNLOCK(self->mutex);
@@ -285,7 +287,7 @@ static inline void* list_delete_at(List *self, size_t index) {
         if (self->head)
             self->head->prev = NULL;
         else
-            self->tail = self->head;    
+            self->tail = self->head;
     } else if (index == self->len-1) {
         to_delete = self->tail;
         self->tail = self->tail->prev;
@@ -322,7 +324,7 @@ static inline void* list_delete_at(List *self, size_t index) {
 
     void *ret = copy_from_void_ptr(to_delete->data, to_delete->type_size);
     
-    Free(to_delete->data);
+    self->destroy(to_delete->data);
     Free(to_delete);
 
     UNLOCK(self->mutex);
@@ -339,6 +341,7 @@ static inline void list_push(List *self, void *data, size_t type_size) {
 static inline void* list_pop(List *self) {
     if (self->is_empty(self))
         return NULL;
+
     return self->delete_at(self, (self->len!=0) ? self->len-1 : 0);
 }
 
@@ -351,6 +354,7 @@ static inline void list_enqueue(List *self, void *data, size_t type_size) {
 static inline void* list_dequeue(List *self) {
     if (self->is_empty(self))
         return NULL;
+        
     return self->delete_at(self, (self->len!=0) ? self->len-1 : 0);
 }
 
@@ -408,7 +412,7 @@ static inline void list_free(List *self) {
     LOCK(self->mutex);
 
     while (!self->is_empty(self))
-        free(self->delete_at(self, 0));
+        self->destroy(self->delete_at(self, 0));
 
     UNLOCK(self->mutex);
     pthread_mutex_destroy(&self->mutex);

@@ -39,8 +39,10 @@ typedef struct List {
     size_t (*count_occurrences)(struct List *self, void *data, size_t type_size);
     void (*merge)(struct List *self, struct List *l2);
     void (*free)(struct List *self);
+
+    void (*destroy)(void *data);
 } List;
 
 
-List* New_List();
+List* New_List(void (*destroy_func)(void *data));
 
