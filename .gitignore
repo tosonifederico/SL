@@ -1,0 +1,6 @@
+./main
+valgrind.log
+
+.vscode
+
+build/
