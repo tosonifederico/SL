@@ -29,6 +29,11 @@ List* New_List(void (*destroy_func)(void *data)) {
     self->len = 0;
     self->head = NULL;
     self->tail = NULL;
+
+    // we use recursive mutex to ensure 
+    // that we can call functions from other function
+    // blocking multiple times the same mutex
+    // without crashing
     pthread_mutexattr_init(&self->mutex_attr);
     pthread_mutexattr_settype(&self->mutex_attr, PTHREAD_MUTEX_RECURSIVE);
 
@@ -53,6 +58,7 @@ List* New_List(void (*destroy_func)(void *data)) {
     self->merge = list_merge;
     self->free = list_free;
 
+    // if a destroyer function is not provided we use (free)
     self->destroy = destroy_func ? destroy_func : free;
 
     return self;
@@ -64,6 +70,7 @@ static list_node* init_list_node(void *data, size_t type_size) {
 
     node->data = data;
     node->type_size = type_size;
+
     node->next = NULL;
     node->prev = NULL;
     
@@ -77,6 +84,7 @@ static inline bool list_is_empty(List *self) {
     size_t len = self->len;
     
     UNLOCK(self->mutex);
+
     return len == 0;
 }
 
@@ -92,6 +100,7 @@ static inline void list_print(List *self) {
     list_node *current_node = self->head;
     
     for (size_t i=0; i<self->len; ++i) {
+        // by default we print the node's data as an int
         printf("|%d| -> ", *((int*)current_node->data));
         current_node = current_node->next;
     }
@@ -106,7 +115,7 @@ static inline void list_print(List *self) {
 static inline void list_append_at(List *self, void *data, size_t type_size, size_t index) {
     LOCK(self->mutex);
 
-    if (index > self->len) {
+    if (index>self->len) {
         fprintf(stderr, "Appending List element out of bound\n");
         exit(EXIT_FAILURE);
     }
@@ -114,9 +123,19 @@ static inline void list_append_at(List *self, void *data, size_t type_size, size
     list_node *new_node = init_list_node(copy_from_void_ptr(data, type_size), type_size);
 
     if (index == 0) {
+        // head insert
         new_node->prev = NULL;
         new_node->next = self->head;
 
+        /* 
+        if a head is already set
+        we update the head's prev node
+        otherwise set the tails to point
+        to the new node 
+        (in a list with a single node
+        the head and tails points
+        to the same node)
+        */
         if (self->head)
             self->head->prev = new_node;
         else
@@ -124,14 +143,22 @@ static inline void list_append_at(List *self, void *data, size_t type_size, size
 
         self->head = new_node;
     } else if (index == self->len) {
+        // tail insertion
+
         new_node->next = NULL;
         new_node->prev = self->tail;
 
         self->tail->next = new_node;
         self->tail = new_node;
     } else {
+        // middle insertion
         list_node *prev_node;
 
+        /*
+        loop the list to find the prev node
+        by the shortest path
+        (head to node) or (tail to node)
+        */
         if (index < self->len/2) {
             prev_node = self->head;
 
@@ -165,6 +192,11 @@ static inline void list_modify_at(List *self, void *data, size_t type_size, size
         exit(EXIT_FAILURE);
     }
 
+    /*
+        loop the list to find the target node
+        by the shortest path
+        (head to node) or (tail to node)
+    */
     list_node *current_node;
 
     if (index == self->len-1) 
@@ -183,7 +215,12 @@ static inline void list_modify_at(List *self, void *data, size_t type_size, size
         }
     }
 
+    /*
+    calls the destroy func on the node's data
+    to avoid memory leaks
+    */
     self->destroy(current_node->data);
+
     current_node->data = copy_from_void_ptr(data, type_size);
 
     UNLOCK(self->mutex);
@@ -198,6 +235,12 @@ static inline void* list_get_at(List *self, size_t index) {
         exit(EXIT_FAILURE);
     }
 
+
+    /*
+        loop the list to find the target node
+        by the shortest path
+        (head to node) or (tail to node)
+    */
     list_node *current_node = self->head;
     
     if (index == self->len-1)
@@ -232,7 +275,6 @@ static inline void list_reverse(List *self) {
 
     while (current_node != NULL) {
         temp = current_node->prev;
-        
         current_node->prev = current_node->next;
         current_node->next = temp;
         current_node = current_node->prev;
@@ -281,14 +323,19 @@ static inline void* list_delete_at(List *self, size_t index) {
     list_node *to_delete = NULL;
 
     if (index == 0) {
+        // head deletion
         to_delete = self->head;
         self->head = self->head->next;
         
+        // if the new head is NULL
+        // set tail and head to NULL
+        // otherwise set head->prev to NULL
         if (self->head)
             self->head->prev = NULL;
         else
             self->tail = self->head;
     } else if (index == self->len-1) {
+        // tail deletion
         to_delete = self->tail;
         self->tail = self->tail->prev;
 
@@ -297,6 +344,11 @@ static inline void* list_delete_at(List *self, size_t index) {
         else
             self->head = NULL;
     } else {
+        /*
+        loop the list to find the target node
+        by the shortest path
+        (head to node) or (tail to node)
+        */
         list_node *prev_node;
         list_node *next_node;
 
@@ -322,6 +374,7 @@ static inline void* list_delete_at(List *self, size_t index) {
 
     self->len--;
 
+    // retun a copy of the deleted node's data
     void *ret = copy_from_void_ptr(to_delete->data, to_delete->type_size);
     
     self->destroy(to_delete->data);
@@ -401,6 +454,7 @@ static inline size_t list_count_occurrences(struct List *self, void *data, size_
 static inline void list_merge(List *self, List *l2) {
     list_node *current_node = l2->head;
 
+    // pushes all the l2 nodes into self
     while (current_node) {
         self->push(self, current_node->data, current_node->type_size);
         current_node = current_node->next;  
@@ -412,6 +466,9 @@ static inline void list_free(List *self) {
     LOCK(self->mutex);
 
     while (!self->is_empty(self))
+        // delete the nodes from the list
+        // and calls the destroy func
+        // in the returned data
         self->destroy(self->delete_at(self, 0));
 
     UNLOCK(self->mutex);
