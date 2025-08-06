@@ -40,7 +40,7 @@ typedef struct List {
     // throws and error if index >= self->len
     void (*modify_at)(struct List *self, void *data, size_t type_size, size_t index);
 
-    // returns the data pointed by the (index) node
+    // returns a copy of the data pointed by the (index) node
     // throws an error if index >= self->len
     void* (*get_at)(struct List *self, size_t index);
 

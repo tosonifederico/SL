@@ -7,11 +7,17 @@
 #define ARRAY_LIST_INITIAL_CAPACITY 128
 
 
+typedef struct {
+    void *data;
+    size_t type_size;
+} ArrayListElement;
+
+
 typedef struct ArrayList {
     // the self pointer is optional to use for the user
     struct ArrayList *self;
 
-    void **arr;
+    ArrayListElement **arr;
     size_t capacity;
 
     pthread_mutex_t mutex;
@@ -21,7 +27,7 @@ typedef struct ArrayList {
     // stores the data at index
     void (*set_at)(struct ArrayList *self, void *data, size_t type_size, size_t index);
 
-    // retuns the data stored at (index)
+    // retuns a copy of the data stored at (index)
     void* (*get_at)(struct ArrayList *self, size_t index);
 
     // applies (func) to every data

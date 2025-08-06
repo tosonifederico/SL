@@ -260,10 +260,11 @@ static inline void* list_get_at(List *self, size_t index) {
     }
 
     void *data = current_node->data;
+    size_t type_size = current_node->type_size;
     
     UNLOCK(self->mutex);
 
-    return data;
+    return copy_from_void_ptr(data, type_size);
 }
 
 

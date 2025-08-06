@@ -1,7 +1,7 @@
 #include "ArrayList.h"
 
 
-ArrayList* New_ArrayList();
+ArrayList* New_ArrayList(void (*destroy_func)(void *data));
 static inline void ArrayList_set_at(ArrayList *self, void *data, size_t type_size, size_t index);
 static inline void* ArrayList_get_at(ArrayList *self, size_t index);
 static void ArrayList_foreach(ArrayList *self, void (*func)(void *data, va_list args), ...);
@@ -23,7 +23,7 @@ ArrayList* New_ArrayList(void (*destroy_func)(void *data)) {
     pthread_mutexattr_destroy(&self->mutex_attr);
 
     self->capacity = ARRAY_LIST_INITIAL_CAPACITY;
-    self->arr = (void**) Calloc(self->capacity, sizeof(void*));
+    self->arr = (ArrayListElement**) Calloc(self->capacity, sizeof(ArrayListElement*));
     
     self->set_at = ArrayList_set_at;
     self->get_at = ArrayList_get_at;
@@ -40,26 +40,38 @@ ArrayList* New_ArrayList(void (*destroy_func)(void *data)) {
 static inline void ArrayList_set_at(ArrayList *self, void *data, size_t type_size, size_t index) {
     LOCK(self->mutex);
 
-    // if the index bound of limits
-    // the arraylist doubles its capacity
+    // if the index is out of bounds
+    // double the arraylist capacity
+    // unitl index < self->capacity
     if (index >= self->capacity) {
         size_t new_capacity = self->capacity * 2;
         while (index >= new_capacity)
             new_capacity *= 2;
 
-        void **new_arr = (void**) Realloc(self->arr, new_capacity * sizeof(void*));
-        memset(new_arr + self->capacity, 0, (new_capacity - self->capacity) * sizeof(void*));
+        ArrayListElement **new_arr = (ArrayListElement**) Realloc(self->arr, new_capacity * sizeof(ArrayListElement*));
+
+        memset(new_arr+self->capacity, 0, (new_capacity-self->capacity) * sizeof(ArrayListElement*));
 
         self->arr = new_arr;
         self->capacity = new_capacity;
     }
 
-    // if the index contains a NON-NULL ptr
-    // calls the destroyer function to it
-    if (self->arr[index])
-        self->destroy(self->arr[index]);
+    // if at index there's no ArrayListElement
+    // allocates it
+    // otherwise destroy the data
+    if (!self->arr[index]) {
+        self->arr[index] = (ArrayListElement*) Malloc(sizeof(ArrayListElement));
 
-    self->arr[index] = copy_from_void_ptr(data, type_size);
+        self->arr[index]->data = NULL;
+        self->arr[index]->type_size = 0;
+    } else {
+        if (self->arr[index]->data)
+            self->destroy(self->arr[index]->data);
+    }
+
+    // update ArrayListElement at index
+    self->arr[index]->data = copy_from_void_ptr(data, type_size);
+    self->arr[index]->type_size = type_size;
 
     UNLOCK(self->mutex);
 }
@@ -71,8 +83,8 @@ static inline void* ArrayList_get_at(ArrayList *self, size_t index) {
 
     void *val = NULL;
 
-    if (index < self->capacity) 
-        val = self->arr[index];
+    if (index < self->capacity && self->arr[index])
+        val = copy_from_void_ptr(self->arr[index]->data, self->arr[index]->type_size);
 
     UNLOCK(self->mutex);
 
@@ -87,14 +99,12 @@ static void ArrayList_foreach(ArrayList *self, void (*func)(void *data, va_list 
     va_start(args, func);
 
     for (size_t i=0; i<self->capacity; ++i) {
-        void *data = self->get_at(self, i);
-        
-        if (!data)
+        if (!self->arr[i])
             continue;
-        
+
         va_list args_copy;
         va_copy(args_copy, args);
-        func(data, args_copy);
+        func(self->arr[i]->data, args_copy);
         va_end(args_copy);
     }
 
@@ -106,19 +116,28 @@ static void ArrayList_foreach(ArrayList *self, void (*func)(void *data, va_list 
 
 static inline void ArrayList_free(ArrayList *self) {
     LOCK(self->mutex);
-    
+
     for (size_t i=0; i<self->capacity; ++i) {
-        if (self->arr[i])
-            self->destroy(self->arr[i]);
+        // check if at i there's an ArrayListElement
+        if (self->arr[i]) {
+            // check if the element as data
+            // ad if so destroies it
+            if (self->arr[i]->data)
+                self->destroy(self->arr[i]->data);
+
+            // Free the ArrayListElement
+            Free(self->arr[i]);
+        }
     }
 
+    // Free the arr
     Free(self->arr);
 
     UNLOCK(self->mutex);
-
     pthread_mutex_destroy(&self->mutex);
 
-    Free(self);
+    // Free the ArrayList
+    free(self);
 }
 
 
