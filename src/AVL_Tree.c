@@ -278,7 +278,7 @@ static void tree_in_order_traversal_helper(tree_node *root, List *lst) {
 static inline List* tree_in_order_traversal(AVL_Tree *self) {
     LOCK(self->mutex);
 
-    List *res = New_List();
+    List *res = New_List(NULL);
     tree_in_order_traversal_helper(self->root, res);
     
     UNLOCK(self->mutex);

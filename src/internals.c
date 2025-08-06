@@ -21,6 +21,8 @@
 
 
 void throw_memory_allocation_error(const char *file, int line, const char *function);
+
+
 void *MallocWrapper(size_t size, const char *file, int line, const char *function);
 void *CallocWrapper(size_t num, size_t size, const char *file, int line, const char *function);
 void *ReallocWrapper(void *ptr, size_t size, const char *file, int line, const char *function);
@@ -87,7 +89,7 @@ void FreeWrapper(void *ptr, const char *file, int line, const char *function) {
 
 #else
 
-#define Malloc(n) Malloc(n)
+#define Malloc(n) malloc(n)
 #define Calloc(n, s) calloc(n)
 #define Realloc(p, n) realloc(p, n)
 #define Free(p) free(p)

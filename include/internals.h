@@ -61,7 +61,8 @@ extern char* strdup(const char*);
 
 /*
     given a void* returns a copy of the ptr allocated in the heap.
-    It doesn't perfom deep copies
+    It doesn't perfom deep copies.
+    if src is NULL or type_size is 0 returns NULL
 */
 void* copy_from_void_ptr(const void *src, size_t type_size);
 

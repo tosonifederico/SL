@@ -11,6 +11,10 @@ static inline void ArrayList_free(ArrayList *self);
 ArrayList* New_ArrayList(void (*destroy_func)(void *data)) {
     ArrayList *self = (ArrayList*) Malloc(sizeof(ArrayList));
 
+    // uses recursive mutex to ensure 
+    // that we can call functions from other function
+    // blocking multiple times the same mutex
+    // without crashing
     pthread_mutexattr_init(&self->mutex_attr);
     pthread_mutexattr_settype(&self->mutex_attr, PTHREAD_MUTEX_RECURSIVE);
 
@@ -26,6 +30,7 @@ ArrayList* New_ArrayList(void (*destroy_func)(void *data)) {
     self->foreach = ArrayList_foreach;
     self->free = ArrayList_free;
 
+    // if a destroyer function is not provided we use (free)
     self->destroy = destroy_func ? destroy_func : free;
 
     return self;
@@ -35,6 +40,8 @@ ArrayList* New_ArrayList(void (*destroy_func)(void *data)) {
 static inline void ArrayList_set_at(ArrayList *self, void *data, size_t type_size, size_t index) {
     LOCK(self->mutex);
 
+    // if the index bound of limits
+    // the arraylist doubles its capacity
     if (index >= self->capacity) {
         size_t new_capacity = self->capacity * 2;
         while (index >= new_capacity)
@@ -47,17 +54,12 @@ static inline void ArrayList_set_at(ArrayList *self, void *data, size_t type_siz
         self->capacity = new_capacity;
     }
 
-    if (self->arr[index]) {
-        if (self->destroy)
-            self->destroy(self->arr[index]);
-        else
-            Free(self->arr[index]);
-    }
+    // if the index contains a NON-NULL ptr
+    // calls the destroyer function to it
+    if (self->arr[index])
+        self->destroy(self->arr[index]);
 
-    if (data)
-        self->arr[index] = copy_from_void_ptr(data, type_size);
-    else
-        self->arr[index] = NULL;
+    self->arr[index] = copy_from_void_ptr(data, type_size);
 
     UNLOCK(self->mutex);
 }

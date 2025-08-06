@@ -30,7 +30,7 @@ List* New_List(void (*destroy_func)(void *data)) {
     self->head = NULL;
     self->tail = NULL;
 
-    // we use recursive mutex to ensure 
+    // uses recursive mutex to ensure 
     // that we can call functions from other function
     // blocking multiple times the same mutex
     // without crashing
